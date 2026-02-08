@@ -261,8 +261,7 @@ if (process.env.ANTHROPIC_API_KEY || (baseUrl && !baseUrl.includes('google-ai-st
 // Configure Gemini (Google AI Studio)
 if (process.env.GOOGLE_AI_STUDIO_API_KEY || baseUrl.includes('google-ai-studio')) {
     console.log('Configuring Google AI Studio (Gemini) provider');
-    config.models.providers['google-ai-studio'] = {
-        baseUrl: baseUrl.includes('google-ai-studio') ? baseUrl : 'https://generativelanguage.googleapis.com',
+    const googleConfig = {
         api: 'google-generative-ai',
         models: [
             { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview', contextWindow: 1048576 },
@@ -273,9 +272,14 @@ if (process.env.GOOGLE_AI_STUDIO_API_KEY || baseUrl.includes('google-ai-studio')
             { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', contextWindow: 1048576 },
         ]
     };
-    if (process.env.GOOGLE_AI_STUDIO_API_KEY) {
-        config.models.providers['google-ai-studio'].apiKey = process.env.GOOGLE_AI_STUDIO_API_KEY;
+    // Only set baseUrl when using AI Gateway; omit for direct access so SDK uses v1beta default
+    if (baseUrl.includes('google-ai-studio')) {
+        googleConfig.baseUrl = baseUrl;
     }
+    if (process.env.GOOGLE_AI_STUDIO_API_KEY) {
+        googleConfig.apiKey = process.env.GOOGLE_AI_STUDIO_API_KEY;
+    }
+    config.models.providers['google-ai-studio'] = googleConfig;
 }
 
 // Configure OpenAI
