@@ -272,9 +272,11 @@ if (process.env.GOOGLE_AI_STUDIO_API_KEY || baseUrl.includes('google-ai-studio')
             { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', contextWindow: 1048576 },
         ]
     };
-    // Only set baseUrl when using AI Gateway; omit for direct access so SDK uses v1beta default
+    // Set baseUrl: AI Gateway URL if available, otherwise direct API URL (required by config validation)
     if (baseUrl.includes('google-ai-studio')) {
         googleConfig.baseUrl = baseUrl;
+    } else {
+        googleConfig.baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
     }
     if (process.env.GOOGLE_AI_STUDIO_API_KEY) {
         googleConfig.apiKey = process.env.GOOGLE_AI_STUDIO_API_KEY;
