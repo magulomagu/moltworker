@@ -302,7 +302,7 @@ if (process.env.OPENAI_API_KEY || (baseUrl && baseUrl.includes('openai'))) {
 config.agents.defaults = config.agents.defaults || {};
 config.agents.defaults.model = config.agents.defaults.model || {};
 const modelPrefix = process.env.GOOGLE_AI_STUDIO_API_KEY ? 'google-ai-studio' : 'anthropic';
-config.agents.defaults.model.primary = primaryModel.includes('/') ? primaryModel.replace('google/', 'google-ai-studio/') : `${modelPrefix}/${primaryModel}`;
+config.agents.defaults.model.primary = primaryModel.includes('/') ? primaryModel.replace('google/', 'google-ai-studio/') : modelPrefix + '/' + primaryModel;
 
 // Write updated config
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
