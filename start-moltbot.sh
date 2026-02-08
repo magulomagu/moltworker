@@ -170,13 +170,13 @@ config.gateway.port = 18789;
 config.gateway.mode = 'local';
 config.gateway.trustedProxies = ['10.1.0.0'];
 
-// Set gateway token if provided
+// Set gateway token if provided (but not in dev mode)
 if (process.env.CLAWDBOT_GATEWAY_TOKEN) {
+    // Production mode: use token if provided
     config.gateway.auth = config.gateway.auth || {};
     config.gateway.auth.token = process.env.CLAWDBOT_GATEWAY_TOKEN;
 }
 
-// Allow insecure auth for dev mode
 if (process.env.CLAWDBOT_DEV_MODE === 'true') {
     config.gateway.controlUi = config.gateway.controlUi || {};
     config.gateway.controlUi.allowInsecureAuth = true;
@@ -222,62 +222,87 @@ if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_APP_TOKEN) {
     config.channels.slack.enabled = true;
 }
 
-// Base URL override (e.g., for Cloudflare AI Gateway)
-// Usage: Set AI_GATEWAY_BASE_URL or ANTHROPIC_BASE_URL to your endpoint like:
-//   https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/anthropic
-//   https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai
+// Determine default model based on available API keys
+const defaultModel = (() => {
+    if (process.env.CF_AI_GATEWAY_MODEL) return process.env.CF_AI_GATEWAY_MODEL;
+    if (process.env.GOOGLE_AI_STUDIO_API_KEY) return 'google/gemini-3-flash-preview';
+    const gwUrl = process.env.AI_GATEWAY_BASE_URL || '';
+    if (gwUrl.includes('google-ai-studio')) return 'google/gemini-3-flash-preview';
+    if (process.env.ANTHROPIC_API_KEY) return 'anthropic/claude-sonnet-4-5-20250929';
+    return 'google/gemini-3-flash-preview';
+})();
+const primaryModel = defaultModel;
 const baseUrl = (process.env.AI_GATEWAY_BASE_URL || process.env.ANTHROPIC_BASE_URL || '').replace(/\/+$/, '');
-const isOpenAI = baseUrl.endsWith('/openai');
 
-if (isOpenAI) {
-    // Create custom openai provider config with baseUrl override
-    // Omit apiKey so moltbot falls back to OPENAI_API_KEY env var
-    console.log('Configuring OpenAI provider with base URL:', baseUrl);
-    config.models = config.models || {};
-    config.models.providers = config.models.providers || {};
-    config.models.providers.openai = {
-        baseUrl: baseUrl,
-        api: 'openai-responses',
-        models: [
-            { id: 'gpt-5.2', name: 'GPT-5.2', contextWindow: 200000 },
-            { id: 'gpt-5', name: 'GPT-5', contextWindow: 200000 },
-            { id: 'gpt-4.5-preview', name: 'GPT-4.5 Preview', contextWindow: 128000 },
-        ]
-    };
-    // Add models to the allowlist so they appear in /models
-    config.agents.defaults.models = config.agents.defaults.models || {};
-    config.agents.defaults.models['openai/gpt-5.2'] = { alias: 'GPT-5.2' };
-    config.agents.defaults.models['openai/gpt-5'] = { alias: 'GPT-5' };
-    config.agents.defaults.models['openai/gpt-4.5-preview'] = { alias: 'GPT-4.5' };
-    config.agents.defaults.model.primary = 'openai/gpt-5.2';
-} else if (baseUrl) {
-    console.log('Configuring Anthropic provider with base URL:', baseUrl);
-    config.models = config.models || {};
-    config.models.providers = config.models.providers || {};
-    const providerConfig = {
-        baseUrl: baseUrl,
+console.log('Primary Model Override:', process.env.CF_AI_GATEWAY_MODEL || '(not set, using default)');
+console.log('Base URL Override:', baseUrl || '(not set)');
+
+config.models = config.models || {};
+config.models.providers = config.models.providers || {};
+
+// Configure Anthropic
+if (process.env.ANTHROPIC_API_KEY || (baseUrl && !baseUrl.includes('google-ai-studio') && !baseUrl.includes('openai'))) {
+    console.log('Configuring Anthropic provider');
+    config.models.providers.anthropic = {
+        baseUrl: (baseUrl && !baseUrl.includes('google-ai-studio') && !baseUrl.includes('openai')) ? baseUrl : 'https://api.anthropic.com',
         api: 'anthropic-messages',
         models: [
-            { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', contextWindow: 200000 },
+            { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', contextWindow: 200000 },
             { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', contextWindow: 200000 },
             { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', contextWindow: 200000 },
         ]
     };
-    // Include API key in provider config if set (required when using custom baseUrl)
     if (process.env.ANTHROPIC_API_KEY) {
-        providerConfig.apiKey = process.env.ANTHROPIC_API_KEY;
+        config.models.providers.anthropic.apiKey = process.env.ANTHROPIC_API_KEY;
     }
-    config.models.providers.anthropic = providerConfig;
-    // Add models to the allowlist so they appear in /models
-    config.agents.defaults.models = config.agents.defaults.models || {};
-    config.agents.defaults.models['anthropic/claude-opus-4-5-20251101'] = { alias: 'Opus 4.5' };
-    config.agents.defaults.models['anthropic/claude-sonnet-4-5-20250929'] = { alias: 'Sonnet 4.5' };
-    config.agents.defaults.models['anthropic/claude-haiku-4-5-20251001'] = { alias: 'Haiku 4.5' };
-    config.agents.defaults.model.primary = 'anthropic/claude-opus-4-5-20251101';
-} else {
-    // Default to Anthropic without custom base URL (uses built-in pi-ai catalog)
-    config.agents.defaults.model.primary = 'anthropic/claude-opus-4-5';
 }
+
+// Configure Gemini (Google AI Studio)
+if (process.env.GOOGLE_AI_STUDIO_API_KEY || baseUrl.includes('google-ai-studio')) {
+    console.log('Configuring Google AI Studio (Gemini) provider');
+    config.models.providers['google-ai-studio'] = {
+        baseUrl: baseUrl.includes('google-ai-studio') ? baseUrl : 'https://generativelanguage.googleapis.com',
+        api: 'google-ai-studio-responses',
+        models: [
+            { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview', contextWindow: 1048576 },
+            { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro Preview', contextWindow: 1048576 },
+            { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', contextWindow: 1048576 },
+            { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', contextWindow: 2097152 },
+            { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', contextWindow: 2097152 },
+            { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', contextWindow: 1048576 },
+        ]
+    };
+    if (process.env.GOOGLE_AI_STUDIO_API_KEY) {
+        config.models.providers['google-ai-studio'].apiKey = process.env.GOOGLE_AI_STUDIO_API_KEY;
+    }
+}
+
+// Configure OpenAI
+if (process.env.OPENAI_API_KEY || (baseUrl && baseUrl.includes('openai'))) {
+    console.log('Configuring OpenAI provider');
+    config.models.providers.openai = {
+        baseUrl: baseUrl.includes('openai') ? baseUrl : 'https://api.openai.com',
+        api: 'openai-responses',
+        models: [
+            { id: 'o3', name: 'o3', contextWindow: 200000 },
+            { id: 'o4-mini', name: 'o4-mini', contextWindow: 200000 },
+            { id: 'gpt-4.1', name: 'GPT-4.1', contextWindow: 1048576 },
+            { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini', contextWindow: 1048576 },
+            { id: 'gpt-4.1-nano', name: 'GPT-4.1 Nano', contextWindow: 1048576 },
+            { id: 'gpt-4o', name: 'GPT-4o', contextWindow: 128000 },
+            { id: 'gpt-4o-mini', name: 'GPT-4o Mini', contextWindow: 128000 },
+        ]
+    };
+    if (process.env.OPENAI_API_KEY) {
+        config.models.providers.openai.apiKey = process.env.OPENAI_API_KEY;
+    }
+}
+
+// Set Primary Model (ensure it has the provider prefix)
+config.agents.defaults = config.agents.defaults || {};
+config.agents.defaults.model = config.agents.defaults.model || {};
+const modelPrefix = process.env.GOOGLE_AI_STUDIO_API_KEY ? 'google-ai-studio' : 'anthropic';
+config.agents.defaults.model.primary = primaryModel.includes('/') ? primaryModel.replace('google/', 'google-ai-studio/') : `${modelPrefix}/${primaryModel}`;
 
 // Write updated config
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2));

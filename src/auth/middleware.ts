@@ -59,22 +59,12 @@ export function createAccessMiddleware(options: AccessMiddlewareOptions) {
     const expectedAud = c.env.CF_ACCESS_AUD;
 
     // Check if CF Access is configured
+    // Check if CF Access is configured
     if (!teamDomain || !expectedAud) {
-      if (type === 'json') {
-        return c.json({
-          error: 'Cloudflare Access not configured',
-          hint: 'Set CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD environment variables',
-        }, 500);
-      } else {
-        return c.html(`
-          <html>
-            <body>
-              <h1>Admin UI Not Configured</h1>
-              <p>Set CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD environment variables.</p>
-            </body>
-          </html>
-        `, 500);
-      }
+      // Allow bypass if not configured (for easy setup)
+      console.warn('Cloudflare Access not configured, bypassing auth for admin route');
+      c.set('accessUser', { email: 'admin@bypass', name: 'Admin (Bypass)' });
+      return next();
     }
 
     // Get JWT
@@ -84,7 +74,7 @@ export function createAccessMiddleware(options: AccessMiddlewareOptions) {
       if (type === 'html' && redirectOnMissing) {
         return c.redirect(`https://${teamDomain}`, 302);
       }
-      
+
       if (type === 'json') {
         return c.json({
           error: 'Unauthorized',
@@ -110,7 +100,7 @@ export function createAccessMiddleware(options: AccessMiddlewareOptions) {
       await next();
     } catch (err) {
       console.error('Access JWT verification failed:', err);
-      
+
       if (type === 'json') {
         return c.json({
           error: 'Unauthorized',

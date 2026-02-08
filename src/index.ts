@@ -62,14 +62,9 @@ function validateRequiredEnv(env: MoltbotEnv): string[] {
   }
 
   // CF Access vars not required in dev/test mode since auth is skipped
+  // CF Access vars are optional now
   if (!isTestMode) {
-    if (!env.CF_ACCESS_TEAM_DOMAIN) {
-      missing.push('CF_ACCESS_TEAM_DOMAIN');
-    }
-
-    if (!env.CF_ACCESS_AUD) {
-      missing.push('CF_ACCESS_AUD');
-    }
+    // Optional checks removed
   }
 
   // Check for AI Gateway or direct Anthropic configuration
@@ -146,6 +141,7 @@ app.route('/', publicRoutes);
 // Mount CDP routes (uses shared secret auth via query param, not CF Access)
 app.route('/cdp', cdp);
 
+
 // =============================================================================
 // PROTECTED ROUTES: Cloudflare Access authentication required
 // =============================================================================
@@ -189,6 +185,11 @@ app.use('*', async (c, next) => {
 
 // Middleware: Cloudflare Access authentication for protected routes
 app.use('*', async (c, next) => {
+  // If Access is not configured, skip authentication
+  if (!c.env.CF_ACCESS_TEAM_DOMAIN || !c.env.CF_ACCESS_AUD) {
+    return next();
+  }
+
   // Determine response type based on Accept header
   const acceptsHtml = c.req.header('Accept')?.includes('text/html');
   const middleware = createAccessMiddleware({

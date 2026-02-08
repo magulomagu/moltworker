@@ -1,0 +1,11 @@
+node_modules
+dist
+.git
+.wrangler
+.dev.vars
+.dev.vars.example
+test
+*.md
+.github
+.gateway_token_backup
+setup_moltworker.sh
