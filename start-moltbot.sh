@@ -223,12 +223,13 @@ if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_APP_TOKEN) {
 }
 
 // Determine default model based on available API keys
+// Primary: Claude Haiku 4.5, Secondary: Gemini 3 Flash
 const defaultModel = (() => {
     if (process.env.CF_AI_GATEWAY_MODEL) return process.env.CF_AI_GATEWAY_MODEL;
+    if (process.env.ANTHROPIC_API_KEY) return 'anthropic/claude-haiku-4-5-20251001';
     if (process.env.GOOGLE_AI_STUDIO_API_KEY) return 'google/gemini-3-flash-preview';
     const gwUrl = process.env.AI_GATEWAY_BASE_URL || '';
     if (gwUrl.includes('google-ai-studio')) return 'google/gemini-3-flash-preview';
-    if (process.env.ANTHROPIC_API_KEY) return 'anthropic/claude-sonnet-4-5-20250929';
     return 'google/gemini-3-flash-preview';
 })();
 const primaryModel = defaultModel;
