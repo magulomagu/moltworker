@@ -262,7 +262,7 @@ if (process.env.GOOGLE_AI_STUDIO_API_KEY || baseUrl.includes('google-ai-studio')
     console.log('Configuring Google AI Studio (Gemini) provider');
     config.models.providers['google-ai-studio'] = {
         baseUrl: baseUrl.includes('google-ai-studio') ? baseUrl : 'https://generativelanguage.googleapis.com',
-        api: 'google-ai-studio-responses',
+        api: 'google-generative-ai',
         models: [
             { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview', contextWindow: 1048576 },
             { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro Preview', contextWindow: 1048576 },
